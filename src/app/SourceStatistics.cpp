@@ -1,6 +1,7 @@
 #include "SourceStatistics.h"
 #include "../fileHelper/FileHelper.h"
 #include "../thread/ThreadPool.h"
+#include "FileInfo.h"
 #include <thread>
 #include <functional>
 #include <stdio.h>
@@ -40,14 +41,7 @@ void printAllFilesInDir(const char* dir) {
 	}
 }
 
-struct SourceType {
-	std::vector<std::string> suffix;		// 需要统计的文件名后缀，可能有多种后缀，比如C/C++(.h .hpp .hpp .c .cxx .cpp等)
-	std::string singleLineComment;			// 单行注释符号
-	std::string multiLineCommentBegin;		// 多行注释开始符号
-	std::string multiLineCommentEnd;		// 多行注释结束符号
-	SourceType(std::vector<std::string>& suffix_, std::string& singleLineComment_, std::string multiLineCommentBegin_, std::string& multiLineCommentEnd_)
-		: suffix(suffix_), singleLineComment(singleLineComment_), multiLineCommentBegin(multiLineCommentBegin_), multiLineCommentEnd(multiLineCommentEnd_) {}
-};
+
 
 
 bool isEmptyLine(std::string& s) {
@@ -62,138 +56,7 @@ bool isEmptyLine(std::string& s) {
 			return false;
 		}
 	}
-}
-
-
-void testReadFile(std::string& file, SourceType& sourceType) {
-	std::vector<std::string> lines;
-	readLines(file, lines);
-
-	size_t total = lines.size();		// 总行数
-	size_t empty = 0;					// 空行数
-	size_t effective = 0;				// 有效代码数
-
-	size_t singleLineComments = 0;		// 一行只有单行注释的行数。            比如：// 单行注释
-	size_t singleCommentsWithCode = 0;	// 代码行后跟单行注释的行数			 比如: int i = 0; // i
-	size_t multiLineComments = 0;		// 多行注释分布在多行的行数			 
-	size_t multiCommentInOneLine = 0;	// 多行注释在同一行的行数				 比如：/*多行注释放在单行中*/
-	size_t multiCommentWithCode = 0;	// 多行注释与代码在同一行的行数		 比如：int j /*j是测试变量*/
-
-	bool multiCommentStart = false;		// 多行注释开始
-	int multiCommentStartRow = -1;		// 多行注释从哪行开始，-1表示还没遇到多行注释
-	size_t curRow = 0;					// 当前处理的行号，用于判断多行注释写在一行上的判断
-
-	for (auto& s : lines) {
-		curRow++;
-		if (isEmptyLine(s)) {
-			empty++;
-			continue;
-		}
-		if (multiCommentStart == true) {
-			multiLineComments++;	// 还处于多行注释 注意多行注释里的空行不算
-		}
-
-		// 注意字符串中的"//"不算
-		bool stringStart = false;	// 是否是字符串起始
-		bool codeStart = false;		// 此行是否包含代码
-		size_t i = 0;
-		while (i < s.size() && s[i] == ' ' || s[i] == '\t') i++;	// 排除一行前面空格
-		size_t i_start = i;		// 记录i起始位置
-		for (; i < s.size();) {
-
-			if (s[i] == '"' && multiCommentStart == false && stringStart == false) {	// 注意多行注释里的字符串不算
-				// 之前没有"，现在遇到了，说明接下来是字符串
-				i++;
-				stringStart = true;
-				continue;
-			}
-			else if (s[i] == '"' && multiCommentStart == false && s[i-1] != '\\' && stringStart == true) {	// 注意字符串中的转义符号 比如\"这个就不是字符串结束标志
-				// 之前有"，现在又遇到了，说明是字符串结束
-				i++;
-				stringStart = false;
-				continue;
-			}
-			else if(stringStart == false){
-				// 到这里就已经跳过了所有字符串
-				if (multiCommentStart == false) {	// 检查多行匹配是否开始
-					int j = 0;
-					int k = i;
-					while (j < sourceType.multiLineCommentBegin.size() && k < s.size() && s[k] == sourceType.multiLineCommentBegin[j]) {
-						j++;
-						k++;
-					}
-					if (j == sourceType.multiLineCommentBegin.size()) {
-						// 多行注释开始符号匹配成功，说明多行注释开始了
-						multiCommentStart = true;
-						multiCommentStartRow = static_cast<int>(curRow);
-						i += j;	// 跳过多行匹配开头符号
-					}
-					else {
-						// 不是多行注释开始, 那么检查是否是单行注释开始
-						j = 0, k = i;
-						while (k < s.size() && j < sourceType.singleLineComment.size() && s[k] == sourceType.singleLineComment[j]) {
-							k++;
-							j++;
-						}
-						if (multiCommentStart == false && j == sourceType.singleLineComment.size()) {
-							// 匹配了单行注释
-							if (!codeStart) {
-								// 这行只有单行注释
-								singleLineComments++;
-							}
-							else {
-								singleCommentsWithCode++;
-							}
-							break;		// 单行注释后面都是注释内容，不用在往后判断了
-						}
-						else {
-							// 到这里，说明当前不是处于字符串内，也不是处于多行注释内，也不是单行注释内,那就是代码开始了
-							i++;
-							effective++;	// 找到一个有效代码行
-							break;
-						}
-					}
-				}
-				else {	// 之前有多行匹配标志，检查多行匹配是否结束
-					int j = 0;
-					int k = i;
-					while (j < sourceType.multiLineCommentEnd.size() && k < s.size() && s[k] == sourceType.multiLineCommentEnd[j]) {
-						j++;
-						k++;
-					}
-					if (j == sourceType.multiLineCommentEnd.size()) {
-						// 多行注释结束符号匹配成功，说明多行注释结束了
-						multiCommentStart = false;
-						if (multiCommentStartRow == curRow) {
-							if (codeStart) {	// 多行注释与代码在同一行
-								multiCommentWithCode++;
-							}
-							else {
-								multiCommentInOneLine++; // 这一行只有多行注释
-							}
-						}
-						else {
-							multiLineComments++;	//最后一个多行注释
-						}
-						i += j;
-					}
-					i++;
-					continue;
-				}
-			}
-			else {
-				//还处于字符串内
-				i++;
-			}
-		}
-	}
-
-	multiLineComments -= multiCommentInOneLine;
-	size_t totalComments = total - effective;
-
-	std::cout << "total: " << total << " empty: " << empty << " effective: " << effective<< " total comments: " << totalComments << std::endl;
-	
-
+	return true;
 }
 
 void strTrim(std::string& s) {
@@ -209,7 +72,13 @@ void strTrim(std::string& s) {
 	s = s.substr(i, end - i+1);
 }
 
-void process(std::string& file, SourceType sourceType) {
+
+
+void process(std::string& file) {
+	string suffixStr = file.substr(file.find_last_of('.') + 1);//获取文件后缀
+	if (sourceType.suffix.find(suffixStr) == sourceType.suffix.end()) {
+		return;		// 不是要处理的源代码文件类型
+	}
 	std::vector<std::string> lines;
 	readLines(file, lines);
 
@@ -372,37 +241,19 @@ void process(std::string& file, SourceType sourceType) {
 		}
 	}
 	total = lines.size();
-	std::cout << "total: " << lines.size() << " empty: " << empty << " effective: " << effective << " comments: " << comments << std::endl;
+	std::cout << file << ": total: " << lines.size() << " empty: " << empty << " effective: " << effective << " comments: " << comments << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
-	/*if (argc < 2) {
+	if (argc < 2) {
 		printf("Usage: %s pathToSouce\n", argv[0]);
 		return 0;
-	}*/
-	char* sourcePath;// = argv[1];
-	//sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\SourceCounter\\test\\Config.cpp";//jsoncpp.cpp";
-	//sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\SourceCounter\\test\\jsoncpp.cpp";
-	sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\SourceCounter\\test\\imgui.cpp";
+	}
+	char* sourcePath = argv[1];
 
-	//sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\Osiris\\jsoncpp.cpp";
-	//sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\Osiris\\imgui\\imgui_impl_dx9.cpp";
-
-	//sourcePath = "C:\\Users\\linshiqi\\Desktop\\统计源码\\Osiris\\Hacks\\SkinChanger.cpp";
-
-
-	std::cout << sourcePath << std::endl;
-	//testThreadLib();
-	//printAllFilesInDir(sourcePath);
-	std::vector<std::string> suffix = {};
-	std::string singleComments = "//";
-	std::string multiCommentsBegin = "/*";
-	std::string multiCommentEnd = "*/";
-	SourceType sourceType = SourceType(suffix, singleComments, multiCommentsBegin, multiCommentEnd);
-//	std::vector<std::string> fileList = getFilesList(sourcePath);
-	//parallel_for_each<std::vector<std::string>::iterator, std::function<void(std::string)>>(fileList.begin(), fileList.end(), process);
-//	testReadFile(std::string(sourcePath), sourceType);
-	process(std::string(sourcePath), sourceType);
+	std::vector<std::string> fileList = getFilesList(sourcePath);
+	parallel_for_each<std::vector<std::string>::iterator, std::function<void(std::string)>>(fileList.begin(), fileList.end(), process);
+	//process(std::string(sourcePath));
 	return 0;
 }
