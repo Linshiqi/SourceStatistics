@@ -3,47 +3,14 @@
 #include "../thread/ThreadPool.h"
 #include "FileInfo.h"
 #include <thread>
+#include <mutex>
 #include <functional>
 #include <stdio.h>
 #include <unordered_map>
 
 using namespace code047;
-void printHardwareThreads() {
-	const unsigned long hardware_threads = std::thread::hardware_concurrency();
-	std::cout << hardware_threads << std::endl;
-}
 
-void print(int e) {
-	//std::cout << std::this_thread::get_id() << ": ";
-	std::cout << e << " ";
-}
-
-void testThreadLib() {
-	const size_t N = 1000;
-	std::vector<int> nums;
-	for (int i = 0; i < N; i++) {
-		nums.push_back(i);
-	}
-	parallel_for_each<std::vector<int>::iterator, std::function<void(int)>>(nums.begin(), nums.end(), print);
-}
-
-void printAllFilesInDir(const char* dir) {
-	/*char dir[200];
-	cout << "Enter a directory: ";
-	cin.getline(dir, 200);*/
-	vector<string>allFileList = getFilesList(dir);
-	std::cout << "共有: " << allFileList.size() << "个文件" << std::endl;
-	cout << "输出所有文件的路径：" << endl;
-	for (size_t i = 0; i < allFileList.size(); i++)
-	{
-		string filePath = allFileList.at(i);
-		cout << filePath << endl;
-	}
-}
-
-
-
-
+// 判断一行是否是空行
 bool isEmptyLine(std::string& s) {
 	if (s.empty()) {
 		return true;
@@ -59,6 +26,7 @@ bool isEmptyLine(std::string& s) {
 	return true;
 }
 
+// 去除字符串两边空白
 void strTrim(std::string& s) {
 	size_t i = 0;
 	size_t end = s.size() - 1;
@@ -72,8 +40,9 @@ void strTrim(std::string& s) {
 	s = s.substr(i, end - i+1);
 }
 
+std::mutex coutMutex;	// 保证命令行输出一行一个
 
-
+// 统计每个源代码文件
 void process(std::string& file) {
 	string suffixStr = file.substr(file.find_last_of('.') + 1);//获取文件后缀
 	if (sourceType.suffix.find(suffixStr) == sourceType.suffix.end()) {
@@ -106,15 +75,7 @@ void process(std::string& file) {
 		}
 
 		strTrim(s);	// 去除字符串s两边空格无效字符
-		//size_t end = s.size() - 1;
-		//while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n'))
-		//{
-		//	i++;	// 排除一行前面空格和无效符号
-		//}
-		//while (end > 0 && (s[end] == ' ' || s[end] == '\t' || s[end] == '\r' || s[end] == '\n')) {
-		//	end--;	// 去除一行后面空格和无效符号
-		//}
-		//s = s.substr(i, end - i);
+
 		size_t stringSize = 0;		// 记录字符串是否独占一行
 		size_t i = 0;
 		unordered_map<size_t, bool> isEscape;	// 字符串中连续的转移符号是否代表转义还是反斜杠
@@ -241,7 +202,10 @@ void process(std::string& file) {
 		}
 	}
 	total = lines.size();
+	
+	coutMutex.lock();	// 加锁 除了这里为了保证输出一行一个外，其他是全并发的
 	std::cout << file << ": total: " << lines.size() << " empty: " << empty << " effective: " << effective << " comments: " << comments << std::endl;
+	coutMutex.unlock();	// 解锁
 }
 
 int main(int argc, char* argv[])
@@ -254,6 +218,5 @@ int main(int argc, char* argv[])
 
 	std::vector<std::string> fileList = getFilesList(sourcePath);
 	parallel_for_each<std::vector<std::string>::iterator, std::function<void(std::string)>>(fileList.begin(), fileList.end(), process);
-	//process(std::string(sourcePath));
 	return 0;
 }
