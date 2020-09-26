@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <string>  
 #include <vector>
@@ -7,84 +8,111 @@
 
 using namespace std;
 
-// 从给定目录读取所有文件路径(绝对路径和文件名)
-vector<string> getFilesList(string dir);
+namespace code047 {
+	// 从给定目录读取所有文件路径(绝对路径和文件名)
+	vector<string> getFilesList(string dir);
 
-// 从给定文件中读取所有行
-std::vector<std::string> readLines(std::string file);
+	// 从给定文件中读取所有行
+	void readLines(const std::string& file, std::vector<std::string>& res) {
+		//std::vector<std::string> res;
+		if (file.empty()) {
+			return;
+		}
+		std::ifstream ifst(file);
+		try {
+			if (ifst.is_open() && ifst.good()) {
+				std::string line;
+				while (std::getline(ifst, line)) {
+					res.push_back(line);
+				}
+			}
+			else {
+				std::cout << "Open file " << file << "failed" << std::endl;
+			}
+			ifst.close();
+		}
+		catch (const std::exception e) {
+			std::cout << e.what() << std::endl;
+			if (ifst.is_open()) {
+				ifst.close();
+			}
+		}
+	}
 
 #ifdef LINUX
 #include <memory.h>
 #include <dirent.h>
-vector<string> getFilesList(string dirpath) {
-	vector<string> allPath;
-	DIR* dir = opendir(dirpath.c_str());
-	if (dir == NULL)
-	{
-		cout << "opendir error" << endl;
+	vector<string> getFilesList(string dirpath) {
+		vector<string> allPath;
+		DIR* dir = opendir(dirpath.c_str());
+		if (dir == NULL)
+		{
+			cout << "opendir error" << endl;
+			return allPath;
+		}
+		struct dirent* entry;
+		while ((entry = readdir(dir)) != NULL)
+		{
+			if (entry->d_type == DT_DIR) {//It's dir
+				if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+					continue;
+				string dirNew = dirpath + "/" + entry->d_name;
+				vector<string> tempPath = getFilesList(dirNew);
+				allPath.insert(allPath.end(), tempPath.begin(), tempPath.end());
+
+			}
+			else {
+				//cout << "name = " << entry->d_name << ", len = " << entry->d_reclen << ", entry->d_type = " << (int)entry->d_type << endl;
+				string name = entry->d_name;
+				string imgdir = dirpath + "/" + name;
+				//sprintf("%s",imgdir.c_str());
+				allPath.push_back(imgdir);
+			}
+
+		}
+		closedir(dir);
+		//system("pause");
 		return allPath;
 	}
-	struct dirent* entry;
-	while ((entry = readdir(dir)) != NULL)
-	{
-		if (entry->d_type == DT_DIR) {//It's dir
-			if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-				continue;
-			string dirNew = dirpath + "/" + entry->d_name;
-			vector<string> tempPath = getFilesList(dirNew);
-			allPath.insert(allPath.end(), tempPath.begin(), tempPath.end());
-
-		}
-		else {
-			//cout << "name = " << entry->d_name << ", len = " << entry->d_reclen << ", entry->d_type = " << (int)entry->d_type << endl;
-			string name = entry->d_name;
-			string imgdir = dirpath + "/" + name;
-			//sprintf("%s",imgdir.c_str());
-			allPath.push_back(imgdir);
-		}
-
-	}
-	closedir(dir);
-	//system("pause");
-	return allPath;
-}
 #endif
 
 #ifdef WINDOWS 
 #include <io.h>  
-vector<string> getFilesList(string dir)
-{
-	vector<string> allPath;
-	// 在目录后面加上"\\*.*"进行第一次搜索
-	string dir2 = dir + "\\*.*";
+	vector<string> getFilesList(string dir)
+	{
+		vector<string> allPath;
+		// 在目录后面加上"\\*.*"进行第一次搜索
+		string dir2 = dir + "\\*.*";
 
-	intptr_t handle;
-	_finddata_t findData;
+		intptr_t handle;
+		_finddata_t findData;
 
-	handle = _findfirst(dir2.c_str(), &findData);
-	if (handle == -1) {// 检查是否成功
-		cout << "can not found the file ... " << endl;
+		handle = _findfirst(dir2.c_str(), &findData);
+		if (handle == -1) {// 检查是否成功
+			cout << "can not found the file ... " << endl;
+			return allPath;
+		}
+		while (_findnext(handle, &findData) == 0)
+		{
+			if (findData.attrib & _A_SUBDIR) //是否含有子目录
+			{
+				//若该子目录为"."或".."，则进行下一次循环，否则输出子目录名，并进入下一次搜索
+				if (strcmp(findData.name, ".") == 0 || strcmp(findData.name, "..") == 0)
+					continue;
+				// 在目录后面加上"\\"和搜索到的目录名进行下一次搜索
+				string dirNew = dir + "\\" + findData.name;
+				vector<string> tempPath = getFilesList(dirNew);
+				allPath.insert(allPath.end(), tempPath.begin(), tempPath.end());
+			}
+			else //不是子目录，即是文件，则输出文件名和文件的大小
+			{
+				string filePath = dir + "\\" + findData.name;
+				allPath.push_back(filePath);
+			}
+		}
+		_findclose(handle);    // 关闭搜索句柄
 		return allPath;
 	}
-	while (_findnext(handle, &findData) == 0)
-	{
-		if (findData.attrib & _A_SUBDIR) //是否含有子目录
-		{
-			//若该子目录为"."或".."，则进行下一次循环，否则输出子目录名，并进入下一次搜索
-			if (strcmp(findData.name, ".") == 0 || strcmp(findData.name, "..") == 0)
-				continue;
-		// 在目录后面加上"\\"和搜索到的目录名进行下一次搜索
-		string dirNew = dir + "\\" + findData.name;
-		vector<string> tempPath = getFilesList(dirNew);
-		allPath.insert(allPath.end(), tempPath.begin(), tempPath.end());
-		}
-		else //不是子目录，即是文件，则输出文件名和文件的大小
-		{
-			string filePath = dir + "\\" + findData.name;
-			allPath.push_back(filePath);
-		}
-	}
-	_findclose(handle);    // 关闭搜索句柄
-	return allPath;
-}
 #endif
+}
+
