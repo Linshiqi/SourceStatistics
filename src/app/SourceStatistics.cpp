@@ -135,8 +135,8 @@ void process(std::string& file) {
 			}
 
 			if (!multiCommentStart) {	// 检查单行注释匹配
-				int k = 0;
-				int j = i;
+				size_t k = 0;
+				size_t j = i;
 				while (k < sourceType.singleLineComment.size() && j < s.size() && s[j] == sourceType.singleLineComment[k]) {
 					j++;
 					k++;
@@ -156,8 +156,8 @@ void process(std::string& file) {
 				}
 			}
 			if (!multiCommentStart) {	// 检查多行注释
-				int k = 0;
-				int j = i;
+				size_t k = 0;
+				size_t j = i;
 				while (k < sourceType.multiLineCommentBegin.size() && j < s.size() && s[j] == sourceType.multiLineCommentBegin[k]) {
 					k++;
 					j++;
@@ -171,8 +171,8 @@ void process(std::string& file) {
 			}
 			if (multiCommentStart) {
 				// 正在多行注释中
-				int k = 0;
-				int j = i;
+				size_t k = 0;
+				size_t j = i;
 				while (k < sourceType.multiLineCommentEnd.size() && j < s.size() && s[j] == sourceType.multiLineCommentEnd[k]) {
 					k++;
 					j++;
