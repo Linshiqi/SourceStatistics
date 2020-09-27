@@ -21,7 +21,7 @@ namespace code047 {
 		const size_t max_threads = (length + min_per_thread - 1) / min_per_thread;
 		const size_t hardware_threads = std::thread::hardware_concurrency();
 		const size_t num_threads = std::min(hardware_threads != 0 ? hardware_threads : 2, max_threads);
-		std::cout << "共有:" << num_threads << "个线程" << std::endl;
+		//std::cout << "共有:" << num_threads << "个线程" << std::endl;
 		const size_t block_size = length / num_threads;		// 每个线程分担的负载
 		std::vector<std::thread> threads(num_threads - 1);	// 注意这里创建线程的线程也算一个
 		JoinThreads joiner(threads);						// 线程资源管理

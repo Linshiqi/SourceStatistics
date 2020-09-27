@@ -40,11 +40,32 @@ void strTrim(std::string& s) {
 	s = s.substr(i, end - i+1);
 }
 
+static std::string folder = "";		// 源码文件夹
+static size_t projectPosi = 0;		// 源码项目名称在文件夹字符串中起始位置
+
+//根据绝对路径获取项目名称位置
+size_t getProjectFolderPosi(std::string& folder) {
+	char separator;
+#ifdef LINUX
+	separator = '/';		// Linux下路径分割符号
+#endif
+
+#ifdef WINDOWS
+	separator = '\\';		// Windows下路径分割符号
+#endif
+	strTrim(folder);		// 去除两边无效空白
+	size_t j = folder.size()-1;
+	while (j >= 0 && folder[j] != separator) { j--; }
+	return j + 1;
+}
+
 std::mutex coutMutex;	// 保证命令行输出一行一个
 
 // 统计每个源代码文件
 void process(std::string& file) {
-	string suffixStr = file.substr(file.find_last_of('.') + 1);//获取文件后缀
+	std::string suffixStr = file.substr(file.find_last_of('.') + 1);//获取文件后缀
+	//size_t projectPosi = getProjectFolderPosi(folder);
+	std::string projectToFile = file.substr(projectPosi, file.size());
 	if (sourceType.suffix.find(suffixStr) == sourceType.suffix.end()) {
 		return;		// 不是要处理的源代码文件类型
 	}
@@ -204,7 +225,7 @@ void process(std::string& file) {
 	total = lines.size();
 	
 	coutMutex.lock();	// 加锁 除了这里为了保证输出一行一个外，其他是全并发的
-	std::cout << file << ": total: " << lines.size() << " empty: " << empty << " effective: " << effective << " comments: " << comments << std::endl;
+	std::cout << projectToFile << " total:" << lines.size() << " empty:" << empty << " effective:" << effective << " comments:" << comments << std::endl;
 	coutMutex.unlock();	// 解锁
 }
 
@@ -215,7 +236,8 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 	char* sourcePath = argv[1];
-
+	folder = std::string(sourcePath);
+	projectPosi = getProjectFolderPosi(folder);
 	std::vector<std::string> fileList = getFilesList(sourcePath);
 	parallel_for_each<std::vector<std::string>::iterator, std::function<void(std::string)>>(fileList.begin(), fileList.end(), process);
 	return 0;
