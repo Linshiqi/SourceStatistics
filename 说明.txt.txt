@@ -1,0 +1,15 @@
+工程说明
+
+工程为Cmake项目，支持跨平台，因时间有限，只在windows下进行了测试
+
+运行环境
+
+win10 64位
+
+运行路径
+
+bin/SourceStatistics.exe
+
+开发环境
+
+vs2019
