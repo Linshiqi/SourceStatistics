@@ -61,6 +61,12 @@ size_t getProjectFolderPosi(std::string& folder) {
 
 std::mutex coutMutex;	// 保证命令行输出一行一个
 
+size_t totalFile = 0;
+size_t totalLine = 0;
+size_t totalEffective = 0;
+size_t totalEmpty = 0;
+size_t totalComment = 0;
+
 // 统计每个源代码文件
 void process(std::string& file) {
 	std::string suffixStr = file.substr(file.find_last_of('.') + 1);//获取文件后缀
@@ -225,6 +231,11 @@ void process(std::string& file) {
 	total = lines.size();
 	
 	coutMutex.lock();	// 加锁 除了这里为了保证输出一行一个外，其他是全并发的
+	totalFile++;
+	totalLine += total;
+	totalEmpty += empty;
+	totalEffective += effective;
+	totalComment += comments;
 	std::cout << projectToFile << " total:" << lines.size() << " empty:" << empty << " effective:" << effective << " comments:" << comments << std::endl;
 	coutMutex.unlock();	// 解锁
 }
@@ -240,5 +251,7 @@ int main(int argc, char* argv[])
 	projectPosi = getProjectFolderPosi(folder);
 	std::vector<std::string> fileList = getFilesList(sourcePath);
 	parallel_for_each<std::vector<std::string>::iterator, std::function<void(std::string)>>(fileList.begin(), fileList.end(), process);
+	
+	std::cout << "Files:" << totalFile << " Lines:" << totalLine << " Code:" << totalEffective << " Comments:" << totalComment << " Blanks:" << totalEmpty << std::endl;
 	return 0;
 }

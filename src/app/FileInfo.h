@@ -18,4 +18,10 @@ std::string singleComments = "//";		// 单行注释
 std::string multiCommentsBegin = "/*";	// 多行注释开头
 std::string multiCommentEnd = "*/";		// 多行注释结尾
 
+// rb
+//std::set<std::string> suffix = { "c", "cpp", "h", "cxx", "hpp" };	// 文件后缀
+//std::string singleComments = "//";		// 单行注释
+//std::string multiCommentsBegin = "/*";	// 多行注释开头
+//std::string multiCommentEnd = "*/";		// 多行注释结尾
+
 SourceType sourceType = SourceType(suffix, singleComments, multiCommentsBegin, multiCommentEnd);
